@@ -1,0 +1,16 @@
+---
+title: "Titanic dataset: Data cleaning and validation"
+author: "Jesús Ros Solé"
+date: '`r format(Sys.Date(),"%e de %B, %Y")`'
+output:
+  pdf_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load_libraries, include=FALSE}
+library(knitr)
+```
