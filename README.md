@@ -15,6 +15,7 @@ probability of passengers. In more detail we will:
 - data
 	- raw: raw datasets as obtained from [Kaggle](https://www.kaggle.com/c/titanic/data).
 	- clean: clean dataset produced as output of the report.
+	- submission: submission file with the predicted labels for test file.
 - doc
 	- report.pdf: pdf output of the report.
 - src
