@@ -249,10 +249,11 @@ Finally, we have used this model to label the instances from the test dataset wi
 # 6. Resources
 
 1. Peter Dalgaard (2008). Introductory statistics with R. Springer Science & Business Media.
-2. Jason W. Osborne (2010). Data Cleaning Basics: Best Practices in Dealing with Extreme Scores. Newborn and Infant Nursing Reviews; 10 (1): pp. 1527-3369.
-3. R Documentation. Shapiro-Wilk Normality Test. http://finzi.psych.upenn.edu/R/library/stats/html/shapiro.test.html. 
-4. R Documentation. Levene's Test. http://finzi.psych.upenn.edu/R/library/car/html/leveneTest.html
-5. R Documentation. Test for Equal Means in a One-Way Layout. http://finzi.psych.upenn.edu/R/library/stats/html/oneway.test.html
-6. R Documentation. Pearson's Chi-squared Test for Count Data.
+2. Jiawei Han, Micheine Kamber, Jian Pei (2012). Data mining: concepts and techniques. Morgan Kaufmann. Chapter 3.
+3. Jason W. Osborne (2010). Data Cleaning Basics: Best Practices in Dealing with Extreme Scores. Newborn and Infant Nursing Reviews; 10 (1): pp. 1527-3369.
+4. R Documentation. Shapiro-Wilk Normality Test. http://finzi.psych.upenn.edu/R/library/stats/html/shapiro.test.html. 
+5. R Documentation. Levene's Test. http://finzi.psych.upenn.edu/R/library/car/html/leveneTest.html
+6. R Documentation. Test for Equal Means in a One-Way Layout. http://finzi.psych.upenn.edu/R/library/stats/html/oneway.test.html
+7. R Documentation. Pearson's Chi-squared Test for Count Data.
 http://finzi.psych.upenn.edu/R/library/stats/html/chisq.test.html
 
