@@ -14,6 +14,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r load_libraries, include=FALSE}
 library(knitr)
 library(VIM)
+library(car)
 ```
 
 # 1. Dataset description
@@ -57,6 +58,7 @@ test <- read.csv("../data/raw/test.csv",
 
 y_train <- train["Survived"]
 train$Survived <- NULL
+test_id <- test["PassengerId"]
 
 all <- rbind(train, test)
 ```
@@ -92,6 +94,8 @@ all <- all[, !(names(all) %in% drop)]
 
 # 3. Data cleaning
 
+# 3.1. Empty values 
+
 At this point, we have selected the attributes that will be useful for our posterior analysis and have created a couple new derived attributes from our dataset. Now we will inspect the remaining attributes for empty values that need to be taken care of.
 
 ```{r empty}
@@ -106,6 +110,8 @@ all$Cabin <- NULL
 all_clean <- suppressWarnings(kNN(all,imp_var=FALSE))
 sapply(all_clean,count_empty)
 ```
+
+# 3.2. Extreme scores
 
 Next we will investigate the extreme values in the dataset for numeric attributes. Numeric attributes are `Age`, `SibSp`, `Parch`, `Fare` and `FamilySize`. Since `FamilySize` is derived from `SibSp` and `Parch` we will only investigate `Age`, `Fare` and `FamilySize` using a boxplot.
 
@@ -128,3 +134,125 @@ write.csv(test, "../data/clean/test.csv", row.names=F)
 ```
 
 # 4. Data analysis
+
+# 4.1. Objective
+
+The objective of the analysis is two-fold: first we will investigate associations between the variables with the target attribute `Survived`. This analysis will help us decide which models to build afterwards. 
+
+Since we have both numerical and categorical attributes and the target attribute is categorical, we will use the corresponding p-value from a One-Way ANOVA test to test signifiance between continuous variables and the target attribute and the p-value from a chi-squared test to test signifiance between categorical variables and the target attribute.
+
+The null hypothesis for the One-Way ANOVA test is that all group produce the same variation on the response, on average. The null hypothesis for the chi-squared test is that the two variables are independent.
+
+# 4.2. Normality and homogeneity of variance
+
+First of all, we will test the numerical attributes for normality using the Shapiro-Wilk test and the homogeneity of the variance for the different groups where we apply the One-Way ANOVA test using Levene's Test.
+
+```{r tests}
+numeric_attr <- c("Age", "SibSp", "Parch", "Fare", "FamilySize")
+#Shapiro-Wilk test
+shapiro.wilk <- sapply(train[numeric_attr],function(x){shapiro.test(x)$p.value})
+#Levene's Test for homogeneity of variance
+compute_levene <- function(attr_name, dataset, target_name){
+        leveneTest(as.formula(paste(attr_name,target_name,sep="~")),
+                              data=dataset)[["Pr(>F)"]][[1]]
+}
+levene <- sapply(numeric_attr, compute_levene, dataset=train,target_name="Survived")
+rbind(shapiro.wilk,levene)
+```
+
+We can see that none of the variables appear to be normally distributed and that the attributes `Parch` and `Fare` do not have equal variances when grouped by the target value.
+
+# 4.3. Association with target variable 
+
+Now we can finally explore the association between variables, specifically which variables are associated with the target attribute `Survived`. This will hint on which variables can be more informative during model building. 
+
+Since some of the groups have unequal variances we will be using the Welch ANOVA test that does not assume equal variances between groups. Additionally, we can use this parametric test because we have large sample sizes, even though we have seen they are not normally distributed. An alternative would be to use a non-parametric test such as the Kruskal-Wallis test.
+
+```{r corr}
+compute_corr <- function(attr_name, dataset, target_name){
+        if(is.numeric(dataset[[attr_name]])){
+                pvalue <- oneway.test(as.formula(paste(attr_name, target_name, sep="~")), data=dataset)$p.value
+        } else { #it is factor
+                pvalue <- chisq.test(dataset[[attr_name]], dataset[[target_name]])$p.value
+        }
+        pvalue 
+}
+
+sapply(names(train[-ncol(train)]),compute_corr,dataset=train,target_name="Survived")
+```
+
+We can see that for all variables except `Age`, `SibSp` and `FamilySize` the results are significant at a 95% confidence level, that is those variables are associated with the target attribute `Survived`. 
+
+# 4.4. Model building
+
+Now that we understand the association between the atributes and the response variable, we will propose several models to predict the test set. Since we are interested in models that output the probability of survival, we will use logistic regression models with different attributes as models.
+
+First we will inspect a model with all variables that turned out  significant in the previous analysis. That is, a model that related `Survived` with `Pclass`, `Sex`, `Parch`, `Fare`, `Embarked` and `Title`.
+
+```{r model1}
+m1 <- glm(Survived ~ Pclass + Sex + Parch + Fare + Embarked + Title, family=binomial(link='logit'), data=train)
+summary(m1)
+```
+
+From the coefficients of the obtained model, we see that the coefficients for the atributes `Fare`, `Sex` and some of the categories in `Title` and `Embarked` are not significant at a 95% confidence level. We will compare this model with another without these variables.
+
+```{r model2}
+m2 <- glm(Survived ~ Pclass + Parch + Embarked + Title, family=binomial(link='logit'), data=train)
+summary(m2)
+```
+
+Comparing both models we can see that the second model has most of its attributes significant, except the same categories in `Title` and `Embarked` attributes. COmparing the AIC values for both models suggest that the first model is slightly better since it has a lower value of AIC. 
+
+AIC stands for Akaine Information Criterion and is a measure of the quality of a given model. This estimator balances the goodness of fit of the model with its complexity. More complex models tend to have a higher capacity of better explaining the data at the cost of overfitting it. Therefore, this estimator introduces a penalisation for higher complexity. 
+
+Since we have obtained a lower AIC value for our more complex model (it introduces more regressors), it means that this addicional complexity is compensated by a better goodness of fit.
+
+Finally, we will try a third model from the first one just dropping the `Fare` attribute. This corresponds to the idea that in a disaster such as the Titanic, the rescue teams would prioritize women and children and, therefore, `Age` might be important even though its coefficient turned out not significative.
+
+```{r model3}
+m3 <- glm(Survived ~ Pclass + Sex + Parch + Embarked + Title, family=binomial(link='logit'), data=train)
+summary(m3)
+```
+
+Indeed it turns out to be a slightly better model according to the AIC values obtained. We will therefore select the third model to make the final prediction on the test set. Before that, we will inspect the significant coefficients of the model to gain some insight on how they affect the response variable.
+
+- Being of a lower class reduces the chances of survival so passengers of class 1 are expected to survive more than passengers of class2 and even more than passengers of class 3.
+- Having more parent/children reduces the chances of survival. Since this attribute will be at most 2 for children (they can at most have their 2 parent aboard) while parents of large families will have larger values of this attribute, it is expected that parents of large families will have less chances of survival.
+- Passengers who embarked from Southampton also have lower chances of survival. It could be explored if those passengers have different demographics as others.
+- Having a title of Mr. or Other. reduces chances of survival. This is in line with the fact the women survived more than man. As for the Other class, there were a few passengers with this class and it might be interesting to explore if they also had different demographics as other passengers.
+
+Finally, we will use the third model to make predictions on the test set.
+
+```{r pred}
+y_pred <- predict(m3, test, type="response")
+head(cbind(test,y_pred))
+```
+
+From the predictions we can see that passenger 892 has a predicted probability of survival of less than 9% while passenger 893 has almost 70% chances of survival. To determine the predicted class we we will use a probability of 50% as a threshold to determine which passengers we think survived. We can finally make a prediction of the test set classes.
+
+```{r thres}
+y_test <- as.factor(ifelse(y_pred > 0.5, 1, 0))
+submission <- data.frame(PassengerId = test_id, Survived=y_test)
+write.csv(submission, "../data/submission/submission.csv", row.names=F, quote=F)
+```
+
+# 5. Conclusion
+
+In this report we have explored the association of the different attributes with the survival chance of passengers of the Titanic using the dataset from the Kaggle competition [Titanic: Machine Learning from Disaster](https://www.kaggle.com/c/titanic) which has helped in building logistic regression models to predict the class for unseen data.
+
+Our analysis determine that all variables except `Age`, `SibSp` and `FamilySize`  significantly associated with `Survived` at a 95% confidence level. Furthermore, the model that uses the attributes `Pclass`, `Sex`, `Parch`, `Embarked` and `Title` as regressors has been the chosen model to predict with according to resulting AIC values amongst the tested models.
+
+This model allows us to explore the relationships between regressors and the target attribute as well as predict probability of survival for passengers. In particular we have detemrined that lower classes, large families, passengers with a title of *Mr* or *Other* and passengers who embarked at Southampton have a significantly lower chance of survival, according to those coeficients from the regression model that turned out to be significant.
+
+Finally, we have used this model to label the instances from the test dataset with their predicted class values.
+
+# 6. Resources
+
+1. Peter Dalgaard (2008). Introductory statistics with R. Springer Science & Business Media.
+2. Jason W. Osborne (2010). Data Cleaning Basics: Best Practices in Dealing with Extreme Scores. Newborn and Infant Nursing Reviews; 10 (1): pp. 1527-3369.
+3. R Documentation. Shapiro-Wilk Normality Test. http://finzi.psych.upenn.edu/R/library/stats/html/shapiro.test.html. 
+4. R Documentation. Levene's Test. http://finzi.psych.upenn.edu/R/library/car/html/leveneTest.html
+5. R Documentation. Test for Equal Means in a One-Way Layout. http://finzi.psych.upenn.edu/R/library/stats/html/oneway.test.html
+6. R Documentation. Pearson's Chi-squared Test for Count Data.
+http://finzi.psych.upenn.edu/R/library/stats/html/chisq.test.html
+
