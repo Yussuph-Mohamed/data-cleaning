@@ -67,7 +67,7 @@ Now that we have our data properly loaded, we will select the attributes that ar
 
 ```{r title}
 all$Title <- gsub("^.*, (.*?)\\..*$","\\1",all$Name)
-table(all$Title)
+kable(table(all$Title),format="pandoc",col.names=c("Title","Freq"), digits=4)
 ```
 
 By looking at the obtained titles we can see that `Master`, `Miss`, `Mr` and `Mrs` are the most common while the others are quite rare. We will try to aggregate some of them to the most common ones (for instance `Ms` is a different spelling from `Miss`) and create an additional class for the rest.
@@ -75,7 +75,7 @@ By looking at the obtained titles we can see that `Master`, `Miss`, `Mr` and `Mr
 ```{r title2}
 all$Title[all$Title %in% c("Mlle", "Ms")] <- "Miss"
 all$Title[!(all$Title %in% c('Master', 'Miss', 'Mr', 'Mrs'))] <- "Other"
-table(all$Title)
+kable(table(all$Title),format="pandoc",col.names=c("Title","Freq"), digits=4)
 all$Title <- as.factor(all$Title)
 ```
 
@@ -100,7 +100,7 @@ At this point, we have selected the attributes that will be useful for our poste
 
 ```{r empty}
 count_empty <- function(attr){sum(is.na(attr))}
-sapply(all,count_empty)
+kable(sapply(all,count_empty),format="pandoc",col.names=c("Empty"), digits=4)
 ```
 
 We observed that the `Cabin` attribute contains mostly empty elements, in fact, about 77% of the rows contain missing data. Therefore, this attribute can be ignored since it will not yield much information. The other attributes that contain missing data are `Age`, `Fare` and `Embarked`. We will use kNN imputation with default settings after dropping the `Cabin` column.
@@ -108,7 +108,7 @@ We observed that the `Cabin` attribute contains mostly empty elements, in fact, 
 ```{r imput}
 all$Cabin <- NULL
 all_clean <- suppressWarnings(kNN(all,imp_var=FALSE))
-sapply(all_clean,count_empty)
+kable(sapply(all_clean,count_empty),format="pandoc",col.names=c("Empty"),digits=4)
 ```
 
 # 3.2. Extreme scores
@@ -157,7 +157,7 @@ compute_levene <- function(attr_name, dataset, target_name){
                               data=dataset)[["Pr(>F)"]][[1]]
 }
 levene <- sapply(numeric_attr, compute_levene, dataset=train,target_name="Survived")
-rbind(shapiro.wilk,levene)
+kable(rbind(shapiro.wilk,levene),format="pandoc",digits=4)
 ```
 
 We can see that none of the variables appear to be normally distributed and that the attributes `Parch` and `Fare` do not have equal variances when grouped by the target value.
@@ -178,7 +178,9 @@ compute_corr <- function(attr_name, dataset, target_name){
         pvalue 
 }
 
-sapply(names(train[-ncol(train)]),compute_corr,dataset=train,target_name="Survived")
+kable(sapply(names(train[-ncol(train)]),compute_corr,dataset=train,
+             target_name="Survived"), format="pandoc",
+      col.names=c("Correlation"), digits=4)
 ```
 
 We can see that for all variables except `Age`, `SibSp` and `FamilySize` the results are significant at a 95% confidence level, that is those variables are associated with the target attribute `Survived`. 
@@ -225,7 +227,7 @@ Finally, we will use the third model to make predictions on the test set.
 
 ```{r pred}
 y_pred <- predict(m3, test, type="response")
-head(cbind(test,y_pred))
+kable(head(cbind(test,y_pred)),format="pandoc", digits=4)
 ```
 
 From the predictions we can see that passenger 892 has a predicted probability of survival of less than 9% while passenger 893 has almost 70% chances of survival. To determine the predicted class we we will use a probability of 50% as a threshold to determine which passengers we think survived. We can finally make a prediction of the test set classes.
