@@ -46,28 +46,27 @@ First we will load the training and test set using `read.csv` indicating the cor
 
 ```{r load}
 train <- read.csv("../data/raw/train.csv", 
-                  colClasses=c("integer", "factor" ,"factor" ,"character" ,"factor"
-                               ,"numeric" ,"integer" ,"integer" ,"character" ,"numeric"
-                               ,"character" ,"factor"), 
+                  colClasses=c("integer", "factor", "factor" ,"character" ,"factor",
+                               "numeric" ,"integer" ,"integer" ,"character" ,"numeric",
+                               "character", "factor"), 
                   na.strings = c("NA", ""))
 test <- read.csv("../data/raw/test.csv", 
-                 colClasses=c("integer" ,"factor" ,"character" ,"factor" ,"numeric"
-                              ,"integer" ,"integer" ,"character" ,"numeric"
-                              ,"character" ,"factor"), 
+                 colClasses=c("integer", "factor", "character", "factor", "numeric",
+                              "integer", "integer", "character", "numeric",
+                              "character", "factor"), 
                  na.strings = c("NA", ""))
 
 y_train <- train["Survived"]
 train$Survived <- NULL
 test_id <- test["PassengerId"]
-
 all <- rbind(train, test)
 ```
 
 Now that we have our data properly loaded, we will select the attributes that are going to be useful for the posterior analysis. First note that the `PassengerID` and `Ticket` attributes will not yield much information to our analysis since they are mostly unique identifiers and can thus be ignored. The `Name` attribute by itself will not be very informative either, but we can extract the passenger title from it.
 
 ```{r title}
-all$Title <- gsub("^.*, (.*?)\\..*$","\\1",all$Name)
-kable(table(all$Title),format="pandoc",col.names=c("Title","Freq"), digits=4)
+all$Title <- gsub("^.*, (.*?)\\..*$","\\1", all$Name)
+kable(table(all$Title), format="pandoc", col.names=c("Title","Freq"),  digits=4)
 ```
 
 By looking at the obtained titles we can see that `Master`, `Miss`, `Mr` and `Mrs` are the most common while the others are quite rare. We will try to aggregate some of them to the most common ones (for instance `Ms` is a different spelling from `Miss`) and create an additional class for the rest.
@@ -75,21 +74,21 @@ By looking at the obtained titles we can see that `Master`, `Miss`, `Mr` and `Mr
 ```{r title2}
 all$Title[all$Title %in% c("Mlle", "Ms")] <- "Miss"
 all$Title[!(all$Title %in% c('Master', 'Miss', 'Mr', 'Mrs'))] <- "Other"
-kable(table(all$Title),format="pandoc",col.names=c("Title","Freq"), digits=4)
+kable(table(all$Title), format="pandoc", col.names=c("Title", "Freq"), digits=4)
 all$Title <- as.factor(all$Title)
 ```
 
 Additinally, we can create a new variable indicating the family size aboard the Titanic from the `SibSp` and `Parch` attributes.
 
 ```{r family}
-all$FamilySize <- all$SibSp+all$Parch+1 #includes self
+all$FamilySize <- all$SibSp + all$Parch + 1 #includes self
 ```
 
 Now we can drop the variables that yield no information `PassengerId`, `Name` and `Ticket`.
 
 ```{r drop1}
 drop <- c("PassengerId", "Name", "Ticket")
-all <- all[, !(names(all) %in% drop)]
+all <- all[,!(names(all) %in% drop)]
 ```
 
 # 3. Data cleaning
@@ -100,15 +99,16 @@ At this point, we have selected the attributes that will be useful for our poste
 
 ```{r empty}
 count_empty <- function(attr){sum(is.na(attr))}
-kable(sapply(all,count_empty),format="pandoc",col.names=c("Empty"), digits=4)
+kable(sapply(all, count_empty), format="pandoc", col.names=c("Empty"), digits=4)
 ```
 
 We observed that the `Cabin` attribute contains mostly empty elements, in fact, about 77% of the rows contain missing data. Therefore, this attribute can be ignored since it will not yield much information. The other attributes that contain missing data are `Age`, `Fare` and `Embarked`. We will use kNN imputation with default settings after dropping the `Cabin` column.
 
 ```{r imput}
 all$Cabin <- NULL
-all_clean <- suppressWarnings(kNN(all,imp_var=FALSE))
-kable(sapply(all_clean,count_empty),format="pandoc",col.names=c("Empty"),digits=4)
+all_clean <- suppressWarnings(kNN(all, imp_var=FALSE))
+kable(sapply(all_clean, count_empty), format="pandoc",
+      col.names=c("Empty"), digits=4)
 ```
 
 # 3.2. Extreme scores
@@ -116,7 +116,7 @@ kable(sapply(all_clean,count_empty),format="pandoc",col.names=c("Empty"),digits=
 Next we will investigate the extreme values in the dataset for numeric attributes. Numeric attributes are `Age`, `SibSp`, `Parch`, `Fare` and `FamilySize`. Since `FamilySize` is derived from `SibSp` and `Parch` we will only investigate `Age`, `Fare` and `FamilySize` using a boxplot.
 
 ```{r outliers}
-par(mfrow=c(1,3))
+par(mfrow=c(1, 3))
 boxplot(all_clean$Age, main="Age")
 boxplot(all_clean$Fare, main="Fare")
 boxplot(all_clean$FamilySize, main="FamilySize")
@@ -127,7 +127,7 @@ We observe some outliers in all 3 variables but their values seem to be realisti
 Finally, we have a clean dataset for further analysis. We will export the clean dataset to a datafile, respecting the initial traning and test partition and adding the target attribute to the training file.
 
 ```{r export}
-train <- cbind(all_clean[1:nrow(train),],y_train)
+train <- cbind(all_clean[1:nrow(train),], y_train)
 test <- all_clean[(nrow(train)+1):nrow(all_clean),]
 write.csv(train, "../data/clean/train.csv", row.names=F)
 write.csv(test, "../data/clean/test.csv", row.names=F)
@@ -150,14 +150,15 @@ First of all, we will test the numerical attributes for normality using the Shap
 ```{r tests}
 numeric_attr <- c("Age", "SibSp", "Parch", "Fare", "FamilySize")
 #Shapiro-Wilk test
-shapiro.wilk <- sapply(train[numeric_attr],function(x){shapiro.test(x)$p.value})
+shapiro.wilk <- sapply(train[numeric_attr], function(x){shapiro.test(x)$p.value})
 #Levene's Test for homogeneity of variance
 compute_levene <- function(attr_name, dataset, target_name){
-        leveneTest(as.formula(paste(attr_name,target_name,sep="~")),
+        leveneTest(as.formula(paste(attr_name, target_name, sep="~")),
                               data=dataset)[["Pr(>F)"]][[1]]
 }
-levene <- sapply(numeric_attr, compute_levene, dataset=train,target_name="Survived")
-kable(rbind(shapiro.wilk,levene),format="pandoc",digits=4)
+levene <- sapply(numeric_attr, compute_levene, dataset=train, 
+                 target_name="Survived")
+kable(rbind(shapiro.wilk, levene), format="pandoc", digits=4)
 ```
 
 We can see that none of the variables appear to be normally distributed and that the attributes `Parch` and `Fare` do not have equal variances when grouped by the target value.
@@ -171,14 +172,16 @@ Since some of the groups have unequal variances we will be using the Welch ANOVA
 ```{r corr}
 compute_corr <- function(attr_name, dataset, target_name){
         if(is.numeric(dataset[[attr_name]])){
-                pvalue <- oneway.test(as.formula(paste(attr_name, target_name, sep="~")), data=dataset)$p.value
+                pvalue <- oneway.test(as.formula(paste(attr_name, target_name,
+                                                       sep="~")), 
+                                      data=dataset)$p.value
         } else { #it is factor
                 pvalue <- chisq.test(dataset[[attr_name]], dataset[[target_name]])$p.value
         }
         pvalue 
 }
 
-kable(sapply(names(train[-ncol(train)]),compute_corr,dataset=train,
+kable(sapply(names(train[-ncol(train)]), compute_corr, dataset=train,
              target_name="Survived"), format="pandoc",
       col.names=c("Correlation"), digits=4)
 ```
@@ -192,14 +195,16 @@ Now that we understand the association between the atributes and the response va
 First we will inspect a model with all variables that turned out  significant in the previous analysis. That is, a model that related `Survived` with `Pclass`, `Sex`, `Parch`, `Fare`, `Embarked` and `Title`.
 
 ```{r model1}
-m1 <- glm(Survived ~ Pclass + Sex + Parch + Fare + Embarked + Title, family=binomial(link='logit'), data=train)
+m1 <- glm(Survived ~ Pclass + Sex + Parch + Fare + Embarked + Title,
+          family=binomial(link='logit'), data=train)
 summary(m1)
 ```
 
 From the coefficients of the obtained model, we see that the coefficients for the atributes `Fare`, `Sex` and some of the categories in `Title` and `Embarked` are not significant at a 95% confidence level. We will compare this model with another without these variables.
 
 ```{r model2}
-m2 <- glm(Survived ~ Pclass + Parch + Embarked + Title, family=binomial(link='logit'), data=train)
+m2 <- glm(Survived ~ Pclass + Parch + Embarked + Title, 
+          family=binomial(link='logit'), data=train)
 summary(m2)
 ```
 
@@ -212,7 +217,8 @@ Since we have obtained a lower AIC value for our more complex model (it introduc
 Finally, we will try a third model from the first one just dropping the `Fare` attribute. This corresponds to the idea that in a disaster such as the Titanic, the rescue teams would prioritize women and children and, therefore, `Age` might be important even though its coefficient turned out not significative.
 
 ```{r model3}
-m3 <- glm(Survived ~ Pclass + Sex + Parch + Embarked + Title, family=binomial(link='logit'), data=train)
+m3 <- glm(Survived ~ Pclass + Sex + Parch + Embarked + Title,
+          family=binomial(link='logit'), data=train)
 summary(m3)
 ```
 
@@ -227,7 +233,7 @@ Finally, we will use the third model to make predictions on the test set.
 
 ```{r pred}
 y_pred <- predict(m3, test, type="response")
-kable(head(cbind(test,y_pred)),format="pandoc", digits=4)
+kable(head(cbind(test, y_pred)), format="pandoc", digits=4)
 ```
 
 From the predictions we can see that passenger 892 has a predicted probability of survival of less than 9% while passenger 893 has almost 70% chances of survival. To determine the predicted class we we will use a probability of 50% as a threshold to determine which passengers we think survived. We can finally make a prediction of the test set classes.
