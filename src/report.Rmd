@@ -14,7 +14,10 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r load_libraries, include=FALSE}
 library(knitr)
 library(VIM)
-library(car)
+library(psych)
+library(vcd)
+library(ICC)
+library(caret)
 ```
 
 # 1. Dataset description
@@ -133,6 +136,41 @@ write.csv(train, "../data/clean/train.csv", row.names=F)
 write.csv(test, "../data/clean/test.csv", row.names=F)
 ```
 
+# 3.3. Exploratory analysis
+
+Finally, we will look at some descriptive statistics of the variables in our dataset.
+
+For the numerical variables, we will look at both central tendency (Mean, Median, 95% Trimmed mean and 95% Winsorized Mean) and dispersion measures (Standard deviation, Interquartile Range and Median Absolute Deviation).
+
+```{r summary}
+c_summary <- function(x, na.rm=TRUE, trim=0.05){
+        c(Mean=mean(x,na.rm=na.rm),
+          Median=median(x,na.rm=na.rm),
+          Trimmed_Mean=mean(x,trim=trim,na.rm=na.rm),
+          Winsorized_Mean=winsor.mean(x,trim=trim,na.rm=na.rm),
+          Std=sd(x,na.rm=na.rm),
+          IQR=IQR(x,na.rm=na.rm),
+          MAD=mad(x,na.rm=na.rm))
+}
+
+sapply(all_clean[c("Age","SibSp","Parch","Fare","FamilySize")], c_summary)
+```
+
+- *Age*: the average age is 29.87 with a standard deviation of 13.71. We observed that the trimmed and winsorized means are close to the mean, meaning there are not many outliers.
+- *SibSp, Parch and FamilySize*: we observe that most of the passengers travel alone since the medians are 0, 0 and 1, respectively.
+- *Fare*: the average fare is 33.29 dollars with a standard deviation of 51.74. This variable seems to be largely dispersed and with some values deviating significatively from the average, as noted by the differences between the mean and the trimmed and winsorized means.
+
+For the catgorical variables, we will show their distribution along the categories of each variable.
+
+```{r summary2}
+summary(all_clean[c("Pclass","Sex","Embarked","Title")])
+```
+
+- *Pclass*: around 25% of the passengers are from first class, 21% of second class and the majority (54%) are of third class.
+- *Sex*: 36% of the passengers are females while 64% are males.
+- *Embarked*: 21% of the passengers embarked from Cherbourg, 9% from Queenstown and the majority (70%) from Southampton.
+- *Title*: 5% of the assengers have the title Master, 20% Miss, 58% Mr, 15% Mrs and the rest (2%) have another title.
+
 # 4. Data analysis
 
 # 4.1. Objective
@@ -145,54 +183,86 @@ The null hypothesis for the One-Way ANOVA test is that all group produce the sam
 
 # 4.2. Normality and homogeneity of variance
 
-First of all, we will test the numerical attributes for normality using the Shapiro-Wilk test and the homogeneity of the variance for the different groups where we apply the One-Way ANOVA test using Levene's Test.
+First of all, we will test the numerical attributes "Age" and "Fare" for normality using the Shapiro-Wilk test and the homogeneity of the variance for the different groups where we apply the One-Way ANOVA test using Fligner-Killeen Test.
 
 ```{r tests}
-numeric_attr <- c("Age", "SibSp", "Parch", "Fare", "FamilySize")
+numeric_attr <- c("Age", "Fare")
 #Shapiro-Wilk test
 shapiro.wilk <- sapply(train[numeric_attr], function(x){shapiro.test(x)$p.value})
-#Levene's Test for homogeneity of variance
-compute_levene <- function(attr_name, dataset, target_name){
-        leveneTest(as.formula(paste(attr_name, target_name, sep="~")),
-                              data=dataset)[["Pr(>F)"]][[1]]
+#Fligner-Killeen Test for homogeneity of variance
+homogeneity_variance <- function(attr_name, dataset, target_name){
+        fligner.test(as.formula(paste(attr_name, target_name, sep="~")),
+                              data=dataset)$p.value
 }
-levene <- sapply(numeric_attr, compute_levene, dataset=train, 
+fligner <- sapply(numeric_attr, homogeneity_variance, dataset=train, 
                  target_name="Survived")
-kable(rbind(shapiro.wilk, levene), format="pandoc", digits=4)
+kable(rbind(shapiro.wilk, fligner), format="pandoc", digits=4)
 ```
 
-We can see that none of the variables appear to be normally distributed and that the attributes `Parch` and `Fare` do not have equal variances when grouped by the target value.
+We can see that none of the variables appear to be normally distributed and that the attribute `Fare` does not have equal variances when grouped by the target value.
 
 # 4.3. Association with target variable 
 
 Now we can finally explore the association between variables, specifically which variables are associated with the target attribute `Survived`. This will hint on which variables can be more informative during model building. 
 
-Since some of the groups have unequal variances we will be using the Welch ANOVA test that does not assume equal variances between groups. Additionally, we can use this parametric test because we have large sample sizes, even though we have seen they are not normally distributed. An alternative would be to use a non-parametric test such as the Kruskal-Wallis test.
+First we will grafically display the association between the variables and the target variable.
+
+```{r plots}
+par(mfrow=c(3,3))
+plot(train$Pclass, train$Survived, xlab="Pclass", ylab="Survived")
+plot(train$Sex, train$Survived, xlab="Sex", ylab="Survived")
+boxplot(Age~Survived, data=train, xlab="Survived", ylab="Age")
+boxplot(SibSp~Survived, data=train, xlab="Survived", ylab="SibSp")
+boxplot(Parch~Survived, data=train, xlab="Survived", ylab="Parch")
+boxplot(Fare~Survived, data=train, xlab="Survived", ylab="Fare")
+plot(train$Embarked, train$Survived, xlab="Embarked", ylab="Survived")
+plot(train$Title, train$Survived, xlab="Title", ylab="Survived")
+boxplot(FamilySize~Survived, data=train, xlab="Survived", ylab="FamilySize")
+```
+
+Some of the insights that we can get from these plots are:
+
+- The higher the class the better the changes of survival.
+- Women survived more than men.
+- Familier with a lot of kids seem to have an easier time surviving.
+- People who paid higher fares have more chances of survival (probably correlated with higher class).
+- Passengers who embarked from Cherbourg seem to have better chances of survival.
+- Passengers with a title of Master have a higher chances of survival than men with a title of Mr.
+
+Since some of the groups have unequal variances we will be using the Welch ANOVA test that does not assume equal variances between groups. Additionally, we can use this parametric test because we have large sample sizes, even though we have seen they are not normally distributed. An alternative would be to use a non-parametric test such as the Kruskal-Wallis test. 
+
+To account for the effect sizes of the associations we are going to use the Intraclass correlation (continuous variables) and Cramer's V (categorical variables). The first ranges between -1 (perfect anticorrelation) to 1 (perfect correlation) having absence of correlation a value of 0, while the latter ranges from 0 (no correlation) to 1 (perfect correlation).
 
 ```{r corr}
+cramer.v <- function(x, y){
+        as.numeric(sqrt(chisq.test(x, y)$statistic /
+    (length(x) * (min(length(unique(x)),length(unique(y))) - 1))))
+}
+
 compute_corr <- function(attr_name, dataset, target_name){
         if(is.numeric(dataset[[attr_name]])){
                 pvalue <- oneway.test(as.formula(paste(attr_name, target_name,
                                                        sep="~")), 
                                       data=dataset)$p.value
+                effect_size <- ICCest(target_name, attr_name, data=dataset)$ICC
         } else { #it is factor
                 pvalue <- chisq.test(dataset[[attr_name]], dataset[[target_name]])$p.value
+                effect_size <- cramer.v(dataset[[attr_name]], dataset[[target_name]])
         }
-        pvalue 
+        list(pvalue=round(pvalue,digits=4), effect_size=round(effect_size,digits=4))
 }
 
-kable(sapply(names(train[-ncol(train)]), compute_corr, dataset=train,
-             target_name="Survived"), format="pandoc",
-      col.names=c("Correlation"), digits=4)
+kable(t(sapply(names(train[-ncol(train)]), compute_corr, dataset=train,
+             target_name="Survived")), format="pandoc")
 ```
 
-We can see that for all variables except `Age`, `SibSp` and `FamilySize` the results are significant at a 95% confidence level, that is those variables are associated with the target attribute `Survived`. 
+We can see that for all variables except `Age`, `SibSp` and `FamilySize` the results are significant at a 95% confidence level, that is those variables are associated with the target attribute `Survived` although the strength of such association is not very strong, as shown in the `effect_size` column, where the highest values are sligthly higher than 0.5. Therefore, there is not a very strong association between those variables and the target variable.
 
 # 4.4. Model building
 
 Now that we understand the association between the atributes and the response variable, we will propose several models to predict the test set. Since we are interested in models that output the probability of survival, we will use logistic regression models with different attributes as models.
 
-First we will inspect a model with all variables that turned out  significant in the previous analysis. That is, a model that related `Survived` with `Pclass`, `Sex`, `Parch`, `Fare`, `Embarked` and `Title`.
+First we will inspect a model with all variables that turned out significant in the previous analysis. That is, a model that related `Survived` with `Pclass`, `Sex`, `Parch`, `Fare`, `Embarked` and `Title`.
 
 ```{r model1}
 m1 <- glm(Survived ~ Pclass + Sex + Parch + Fare + Embarked + Title,
@@ -224,10 +294,23 @@ summary(m3)
 
 Indeed it turns out to be a slightly better model according to the AIC values obtained. We will therefore select the third model to make the final prediction on the test set. Before that, we will inspect the significant coefficients of the model to gain some insight on how they affect the response variable.
 
-- Being of a lower class reduces the chances of survival so passengers of class 1 are expected to survive more than passengers of class2 and even more than passengers of class 3.
+- Being of a lower class reduces the chances of survival so passengers of class 1 are expected to survive more than passengers of class 2 and even more than passengers of class 3.
 - Having more parent/children reduces the chances of survival. Since this attribute will be at most 2 for children (they can at most have their 2 parent aboard) while parents of large families will have larger values of this attribute, it is expected that parents of large families will have less chances of survival.
 - Passengers who embarked from Southampton also have lower chances of survival. It could be explored if those passengers have different demographics as others.
 - Having a title of Mr. or Other. reduces chances of survival. This is in line with the fact the women survived more than man. As for the Other class, there were a few passengers with this class and it might be interesting to explore if they also had different demographics as other passengers.
+
+To get an estimate of the performance of this model on unseen data we will use a 5-fold cross validation strategy on the training dataset. We will output the resulting accuracy score obtained as an average of the 5-fold scores along with its standard deviation.
+
+```{r performance}
+train_control <- trainControl(method = "cv", number = 5)
+performance <- train(Survived ~ Pclass + Sex + Parch + Embarked + Title,
+               data = train,
+               trControl = train_control,
+               method = "glm",
+               family=binomial(link='logit'))
+sprintf("5-fold accuracy score: %.4f +/- %.4f", 
+        performance$results$Accuracy, performance$results$AccuracySD)
+```
 
 Finally, we will use the third model to make predictions on the test set.
 
@@ -248,11 +331,11 @@ write.csv(submission, "../data/submission/submission.csv", row.names=F, quote=F)
 
 In this report we have explored the association of the different attributes with the survival chance of passengers of the Titanic using the dataset from the Kaggle competition [Titanic: Machine Learning from Disaster](https://www.kaggle.com/c/titanic) which has helped in building logistic regression models to predict the class for unseen data.
 
-Our analysis determine that all variables except `Age`, `SibSp` and `FamilySize`  significantly associated with `Survived` at a 95% confidence level. Furthermore, the model that uses the attributes `Pclass`, `Sex`, `Parch`, `Embarked` and `Title` as regressors has been the chosen model to predict with according to resulting AIC values amongst the tested models.
+Our analysis determine that all variables except `Age`, `SibSp` and `FamilySize`  significantly associated with `Survived` at a 95% confidence level although the strength of such association is not very strong. Furthermore, the model that uses the attributes `Pclass`, `Sex`, `Parch`, `Embarked` and `Title` as regressors has been the chosen model to predict with according to resulting AIC values amongst the tested models.
 
-This model allows us to explore the relationships between regressors and the target attribute as well as predict probability of survival for passengers. In particular we have detemrined that lower classes, large families, passengers with a title of *Mr* or *Other* and passengers who embarked at Southampton have a significantly lower chance of survival, according to those coeficients from the regression model that turned out to be significant.
+This model allows us to explore the relationships between regressors and the target attribute as well as predict probability of survival for passengers. In particular we have determined that lower classes, large families, passengers with a title of *Mr* or *Other* and passengers who embarked at Southampton have a significantly lower chance of survival, according to those coeficients from the regression model that turned out to be significant.
 
-Finally, we have used this model to label the instances from the test dataset with their predicted class values.
+Finally, we have computed an estimate of the performance of this model using 5-fold cross validation on the training dataset and we have used this model to label the instances from the test dataset with their predicted class values. Our predicted accuracy from the 5-fold CV is around 80%.
 
 # 6. Resources
 
@@ -260,8 +343,11 @@ Finally, we have used this model to label the instances from the test dataset wi
 2. Jiawei Han, Micheine Kamber, Jian Pei (2012). Data mining: concepts and techniques. Morgan Kaufmann. Chapter 3.
 3. Jason W. Osborne (2010). Data Cleaning Basics: Best Practices in Dealing with Extreme Scores. Newborn and Infant Nursing Reviews; 10 (1): pp. 1527-3369.
 4. R Documentation. Shapiro-Wilk Normality Test. http://finzi.psych.upenn.edu/R/library/stats/html/shapiro.test.html. 
-5. R Documentation. Levene's Test. http://finzi.psych.upenn.edu/R/library/car/html/leveneTest.html
+5. R Documentation. Fligner-Killeen Test of Homogeneity of Variances. http://finzi.psych.upenn.edu/R/library/stats/html/fligner.test.html
 6. R Documentation. Test for Equal Means in a One-Way Layout. http://finzi.psych.upenn.edu/R/library/stats/html/oneway.test.html
 7. R Documentation. Pearson's Chi-squared Test for Count Data.
 http://finzi.psych.upenn.edu/R/library/stats/html/chisq.test.html
+8. R Documentation. ICC: Facilitating Estimation of the Intraclass Correlation Coefficient.
+https://cran.r-project.org/web/packages/ICC/index.html
+
 
