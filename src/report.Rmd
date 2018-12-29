@@ -15,7 +15,6 @@ knitr::opts_chunk$set(echo = TRUE)
 library(knitr)
 library(VIM)
 library(psych)
-library(vcd)
 library(ICC)
 library(caret)
 ```
@@ -33,7 +32,7 @@ The attribute descriptions are:
 - *Pclass*: boarding class encoded as `1` (first class), `2` (second class) or `3` (third class).
 - *Name*: name of the passenger as a string.
 - *Sex*: sex of the passenger encoded as `male` or `female`.
-- *Age*: age of the passenger,
+- *Age*: age of the passenger.
 - *SibSp*: number of siblings/spouse aboard.
 - *Parch*: number of parent/child aboard.
 - *Ticket*: identifier of the boarding pass.
@@ -183,7 +182,7 @@ The null hypothesis for the One-Way ANOVA test is that all group produce the sam
 
 # 4.2. Normality and homogeneity of variance
 
-First of all, we will test the numerical attributes "Age" and "Fare" for normality using the Shapiro-Wilk test and the homogeneity of the variance for the different groups where we apply the One-Way ANOVA test using Fligner-Killeen Test.
+First of all, we will test the numerical attributes "Age" and "Fare" for normality using the Shapiro-Wilk test and the homogeneity of the variance using Fligner-Killeen Test.
 
 ```{r tests}
 numeric_attr <- c("Age", "Fare")
@@ -224,10 +223,10 @@ Some of the insights that we can get from these plots are:
 
 - The higher the class the better the changes of survival.
 - Women survived more than men.
-- Familier with a lot of kids seem to have an easier time surviving.
+- Larger families seem to have a harder time surviving.
 - People who paid higher fares have more chances of survival (probably correlated with higher class).
 - Passengers who embarked from Cherbourg seem to have better chances of survival.
-- Passengers with a title of Master have a higher chances of survival than men with a title of Mr.
+- Passengers with a title of Master have a higher chance of survival than men with a title of Mr.
 
 Since some of the groups have unequal variances we will be using the Welch ANOVA test that does not assume equal variances between groups. Additionally, we can use this parametric test because we have large sample sizes, even though we have seen they are not normally distributed. An alternative would be to use a non-parametric test such as the Kruskal-Wallis test. 
 
@@ -260,7 +259,7 @@ We can see that for all variables except `Age`, `SibSp` and `FamilySize` the res
 
 # 4.4. Model building
 
-Now that we understand the association between the atributes and the response variable, we will propose several models to predict the test set. Since we are interested in models that output the probability of survival, we will use logistic regression models with different attributes as models.
+Now that we understand the association between the atributes and the response variable, we will propose several models to predict the target class. Since we are interested in models that output the probability of survival, we will use logistic regression models with different attributes as models.
 
 First we will inspect a model with all variables that turned out significant in the previous analysis. That is, a model that related `Survived` with `Pclass`, `Sex`, `Parch`, `Fare`, `Embarked` and `Title`.
 
@@ -278,7 +277,7 @@ m2 <- glm(Survived ~ Pclass + Parch + Embarked + Title,
 summary(m2)
 ```
 
-Comparing both models we can see that the second model has most of its attributes significant, except the same categories in `Title` and `Embarked` attributes. COmparing the AIC values for both models suggest that the first model is slightly better since it has a lower value of AIC. 
+Comparing both models we can see that the second model has most of its attributes significant, except the same categories in `Title` and `Embarked` attributes. Comparing the AIC values for both models suggest that the first model is slightly better since it has a lower value of AIC. 
 
 AIC stands for Akaine Information Criterion and is a measure of the quality of a given model. This estimator balances the goodness of fit of the model with its complexity. More complex models tend to have a higher capacity of better explaining the data at the cost of overfitting it. Therefore, this estimator introduces a penalisation for higher complexity. 
 
@@ -331,9 +330,9 @@ write.csv(submission, "../data/submission/submission.csv", row.names=F, quote=F)
 
 In this report we have explored the association of the different attributes with the survival chance of passengers of the Titanic using the dataset from the Kaggle competition [Titanic: Machine Learning from Disaster](https://www.kaggle.com/c/titanic) which has helped in building logistic regression models to predict the class for unseen data.
 
-Our analysis determine that all variables except `Age`, `SibSp` and `FamilySize`  significantly associated with `Survived` at a 95% confidence level although the strength of such association is not very strong. Furthermore, the model that uses the attributes `Pclass`, `Sex`, `Parch`, `Embarked` and `Title` as regressors has been the chosen model to predict with according to resulting AIC values amongst the tested models.
+Our analysis determine that all variables except `Age`, `SibSp` and `FamilySize`  are significantly associated with `Survived` at a 95% confidence level although the strength of such association is not very strong. Furthermore, the model that uses the attributes `Pclass`, `Sex`, `Parch`, `Embarked` and `Title` as regressors has been the chosen model to predict with according to resulting AIC values amongst the tested models.
 
-This model allows us to explore the relationships between regressors and the target attribute as well as predict probability of survival for passengers. In particular we have determined that lower classes, large families, passengers with a title of *Mr* or *Other* and passengers who embarked at Southampton have a significantly lower chance of survival, according to those coeficients from the regression model that turned out to be significant.
+This model allows us to explore the relationships between regressors and the target attribute as well as predict probability of survival for passengers. In particular we have determined that lower classes, large families, passengers with a title of *Mr* or *Other* and passengers who embarked at Southampton have a significantly lower chance of survival, according to the coefficients from the regression model that turned out to be significant.
 
 Finally, we have computed an estimate of the performance of this model using 5-fold cross validation on the training dataset and we have used this model to label the instances from the test dataset with their predicted class values. Our predicted accuracy from the 5-fold CV is around 80%.
 
