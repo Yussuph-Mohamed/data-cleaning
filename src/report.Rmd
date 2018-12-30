@@ -223,7 +223,7 @@ Some of the insights that we can get from these plots are:
 
 - The higher the class the better the changes of survival.
 - Women survived more than men.
-- Larger families seem to have a harder time surviving.
+- Medium size families seem to have better survival chances than passengers who travel alone. The largest families seem to have a lower chance of survival.
 - People who paid higher fares have more chances of survival (probably correlated with higher class).
 - Passengers who embarked from Cherbourg seem to have better chances of survival.
 - Passengers with a title of Master have a higher chance of survival than men with a title of Mr.
