@@ -44,7 +44,7 @@ The objective of this work is study the groups of people that are more likely to
 
 # 2. Data integration and selection
 
-First we will load the training and test set using `read.csv` indicating the corresponding data types. We then extract the target attribute from the test set and merge the training and test datasets for the next steps.
+First we will load the training and test set using `read.csv` indicating the corresponding data types. We then extract the target attribute from the training set, the id column from the test set and merge the training and test datasets for the next steps.
 
 ```{r load}
 train <- read.csv("../data/raw/train.csv", 
@@ -168,7 +168,7 @@ summary(all_clean[c("Pclass","Sex","Embarked","Title")])
 - *Pclass*: around 25% of the passengers are from first class, 21% of second class and the majority (54%) are of third class.
 - *Sex*: 36% of the passengers are females while 64% are males.
 - *Embarked*: 21% of the passengers embarked from Cherbourg, 9% from Queenstown and the majority (70%) from Southampton.
-- *Title*: 5% of the assengers have the title Master, 20% Miss, 58% Mr, 15% Mrs and the rest (2%) have another title.
+- *Title*: 5% of the passengers have the title Master, 20% Miss, 58% Mr, 15% Mrs and the rest (2%) have another title.
 
 # 4. Data analysis
 
@@ -283,7 +283,7 @@ AIC stands for Akaine Information Criterion and is a measure of the quality of a
 
 Since we have obtained a lower AIC value for our more complex model (it introduces more regressors), it means that this addicional complexity is compensated by a better goodness of fit.
 
-Finally, we will try a third model from the first one just dropping the `Fare` attribute. This corresponds to the idea that in a disaster such as the Titanic, the rescue teams would prioritize women and children and, therefore, `Age` might be important even though its coefficient turned out not significative.
+Finally, we will try a third model from the first one just dropping the `Fare` attribute. We are keeping the `Sex` variable since we observed that women did survive more than men and, therefore, `Sex` might be important even though its coefficient turned out not significative.
 
 ```{r model3}
 m3 <- glm(Survived ~ Pclass + Sex + Parch + Embarked + Title,
@@ -334,7 +334,7 @@ Our analysis determine that all variables except `Age`, `SibSp` and `FamilySize`
 
 This model allows us to explore the relationships between regressors and the target attribute as well as predict probability of survival for passengers. In particular we have determined that lower classes, large families, passengers with a title of *Mr* or *Other* and passengers who embarked at Southampton have a significantly lower chance of survival, according to the coefficients from the regression model that turned out to be significant.
 
-Finally, we have computed an estimate of the performance of this model using 5-fold cross validation on the training dataset and we have used this model to label the instances from the test dataset with their predicted class values. Our predicted accuracy from the 5-fold CV is around 80%.
+Finally, we have computed an estimate of the performance of this model using 5-fold cross validation on the training dataset and we have used this model to label the instances from the test dataset with their predicted class values. Our predicted accuracy from the 5-fold CV is `r round(performance$results$Accuracy, 4)` +/- `r round(performance$results$AccuracySD, 4)`.
 
 # 6. Resources
 
